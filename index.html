@@ -95,6 +95,13 @@ const firebaseConfig={apiKey:"AIzaSyAfSpsRXf6gpn0ZORkC7T8Z-O9zAlhbGSo",authDomai
 // =====================================================
 let STAFF=["Solomon Chant","Kavitesh Prasad","Neha Naidu","Geeta Singh","Jone Nawele","Audrey D'Cruz","Jennifer Cortez"];
 const DEFAULT_STAFF=[...STAFF];
+let QUESTIONS=[
+{id:"project",label:"What project work did you do?",hint:"Be specific — which site, what task. If none, write \"No active projects.\""},
+{id:"training",label:"What did you learn or train on?",hint:"Courses, tutorials, software practice. If nothing, write \"None.\""},
+{id:"initiative",label:"What did you do WITHOUT being asked?",hint:"Fixed something? Improved a process? Organised files?"},
+{id:"crossTraining",label:"Cross-training (taught or learned from a colleague)?",hint:"Who and what?"},
+{id:"blockers",label:"Blockers or notes?",hint:"Challenges, equipment issues, things you need"}
+];
 const MANAGERS=["Chris","Nina","Nikhil"];
 const MANAGER_PIN="3226";
 const CRITERIA=["Productivity","Initiative","Quality","Development"];
@@ -134,13 +141,17 @@ function lsGet(k){try{return JSON.parse(localStorage.getItem(k))||{}}catch(e){re
 function lsSave(){try{localStorage.setItem("kp_logs",JSON.stringify(S.logs));localStorage.setItem("kp_evals",JSON.stringify(S.evals))}catch(e){}}
 
 function loadData(cb){
-  if(useLocal||!db){S.logs=lsGet("kp_logs");S.evals=lsGet("kp_evals");const ls=lsGet("kp_staff");if(ls&&ls.length)STAFF=ls;cb();return}
+  if(useLocal||!db){S.logs=lsGet("kp_logs");S.evals=lsGet("kp_evals");const ls=lsGet("kp_staff");if(ls&&ls.length)STAFF=ls;const lq=lsGet("kp_questions");if(lq&&lq.length)QUESTIONS=lq;cb();return}
   db.ref("staff").on("value",s=>{const v=s.val();if(v&&v.length){STAFF=v;S.es=STAFF[0]}render()});
+  db.ref("questions").on("value",s=>{const v=s.val();if(v&&v.length)QUESTIONS=v;render()});
   db.ref("logs").on("value",s=>{S.logs=s.val()||{};render()});
   db.ref("evals").on("value",s=>{S.evals=s.val()||{};render()});cb();
 }
 async function saveStaff(){
   if(!useLocal&&db){await db.ref("staff").set(STAFF)}else{try{localStorage.setItem("kp_staff",JSON.stringify(STAFF))}catch(e){}}
+}
+async function saveQuestions(){
+  if(!useLocal&&db){await db.ref("questions").set(QUESTIONS)}else{try{localStorage.setItem("kp_questions",JSON.stringify(QUESTIONS))}catch(e){}}
 }
 async function saveLog(k,d){
   S.logs[k]=d;
@@ -171,14 +182,9 @@ function staffSelScr(){return'<div class="login-screen"><div class="login-card" 
 function mgrPinScr(){return'<div class="login-screen"><div class="login-card"><div class="login-brand">KAHUTO PACIFIC</div><h1 class="login-title">Manager Access</h1><p class="login-sub">Enter PIN to continue</p><input type="password" id="pin" class="pin-input" maxlength="4" placeholder="••••" autocomplete="off"><div id="pinErr" class="pin-error hidden">Wrong PIN</div><div style="margin-top:16px">'+MANAGERS.map(m=>'<button class="login-btn login-btn-fill" data-action="loginMgr" data-name="'+m+'" style="margin-bottom:8px">Continue as '+m+'</button>').join('')+'</div><button class="login-back" data-action="back">← Back</button></div></div>'}
 function staffAppScr(){const n=S.user,w=gw(),ex=S.logs[sk(n+"-"+w)],ml=gl(n);
 return'<div class="header"><div class="header-left"><div><div class="header-brand">PERFORMANCE TRACKER</div><div class="header-title">'+n+'</div></div></div><button class="btn-logout" data-action="logout">Logout</button></div>'+(S.toast?'<div class="toast">'+S.toast+'</div>':'')+'<div class="container"><div class="card"><div class="card-title">Submit This Week\'s Log</div><div class="card-sub">Week ending: <strong>'+fd(w)+'</strong>'+(ex?' <span style="color:#f59e0b">(Already submitted — will update)</span>':'')+'</div><div class="form-group"><label class="form-label">Week Ending Date</label><input type="date" id="lw" class="form-input" value="'+w+'"></div>'+
-[{id:"lp",l:"What project work did you do?",h:'Be specific — which site, what task. If none, write "No active projects."',v:ex?ex.project||"":""},
-{id:"lt",l:"What did you learn or train on?",h:'Courses, tutorials, software practice. If nothing, write "None."',v:ex?ex.training||"":""},
-{id:"li",l:"What did you do WITHOUT being asked?",h:"Fixed something? Improved a process? Organised files?",v:ex?ex.initiative||"":""},
-{id:"lc",l:"Cross-training (taught or learned from a colleague)?",h:"Who and what?",v:ex?ex.crossTraining||"":""},
-{id:"lb",l:"Blockers or notes?",h:"Challenges, equipment issues, things you need",v:ex?ex.blockers||"":""}
-].map(f=>'<div class="form-group"><label class="form-label">'+f.l+'</label><div class="form-hint">'+f.h+'</div><textarea id="'+f.id+'" class="form-textarea" rows="3">'+f.v+'</textarea></div>').join('')+
+QUESTIONS.map(q=>'<div class="form-group"><label class="form-label">'+q.label+'</label><div class="form-hint">'+q.hint+'</div><textarea id="q_'+q.id+'" class="form-textarea" rows="3">'+(ex&&ex[q.id]||"")+'</textarea></div>').join('')+
 '<button class="btn btn-primary" data-action="subLog">'+(ex?"Update Log":"Submit Log")+'</button></div>'+
-(ml.length?'<div class="card"><div class="card-title">My Past Submissions</div>'+ml.map(l=>{const ev=S.evals[sk(n+"-"+l.week)],r=ev?gr(ev.overall):null;return'<div class="hist-item"><div class="hist-top"><span class="hist-date">'+fd(l.week)+'</span>'+(ev?'<span class="hist-badge" style="background:'+r.color+'">'+ev.overall+'/5</span>':'<span style="color:var(--text-lighter);font-size:12px">Pending review</span>')+'</div><p style="font-size:12px;color:var(--text-light);margin-top:4px">'+((l.project||"").substring(0,100))+((l.project||"").length>100?"...":"")+'</p></div>'}).join('')+'</div>':'')+
+(ml.length?'<div class="card"><div class="card-title">My Past Submissions</div>'+ml.map(l=>{const ev=S.evals[sk(n+"-"+l.week)],r=ev?gr(ev.overall):null,preview=QUESTIONS.map(q=>l[q.id]).filter(Boolean)[0]||"";return'<div class="hist-item"><div class="hist-top"><span class="hist-date">'+fd(l.week)+'</span>'+(ev?'<span class="hist-badge" style="background:'+r.color+'">'+ev.overall+'/5</span>':'<span style="color:var(--text-lighter);font-size:12px">Pending review</span>')+'</div><p style="font-size:12px;color:var(--text-light);margin-top:4px">'+preview.substring(0,100)+(preview.length>100?"...":"")+'</p></div>'}).join('')+'</div>':'')+
 '<div class="alert-box"><h3>No Active Projects? Here\'s What You Should Be Doing:</h3>'+BETWEEN.map((x,i)=>'<div class="alert-item"><span class="alert-num">'+(i+1)+'.</span><span>'+x+'</span></div>').join('')+'</div></div>'}
 function mgrAppScr(){const au=STAFF.reduce((n,s)=>n+gu(s).length,0);
 return'<div class="header"><div class="header-left"><div><div class="header-brand">PERFORMANCE TRACKER</div><div class="header-title">Manager — '+S.user+'</div></div></div><div style="display:flex;gap:6px"><button class="btn-danger" data-action="reset">Reset</button><button class="btn-logout" data-action="logout">Logout</button></div></div>'+(S.toast?'<div class="toast">'+S.toast+'</div>':'')+
@@ -186,26 +192,30 @@ return'<div class="header"><div class="header-left"><div><div class="header-bran
 function evalTab(){const es=S.es,pend=gu(es),ew=S.ew,log=ew?S.logs[sk(es+"-"+ew)]:null;
 let c='<div class="staff-btns">'+STAFF.map(s=>{const p=gu(s).length;return'<button class="staff-btn '+(S.es===s?"active":"")+'" data-action="setES" data-name="'+s+'">'+s.split(" ")[0]+(p>0?' <span class="badge">'+p+'</span>':'')+'</button>'}).join('')+'</div>';
 if(!ew){if(!pend.length)c+='<div class="empty">No pending logs for '+es.split(" ")[0]+'. All caught up! ✓</div>';
-else{c+='<div class="card"><div class="card-title">Pending Evaluations — '+es+'</div>';pend.forEach(l=>{c+='<button class="pending-btn" data-action="startEv" data-week="'+l.week+'"><div class="pending-date">'+fd(l.week)+'</div><div class="pending-preview">'+((l.project||"").substring(0,80))+'...</div></button>'});c+='</div>'}}
+else{c+='<div class="card"><div class="card-title">Pending Evaluations — '+es+'</div>';pend.forEach(l=>{const preview=QUESTIONS.map(q=>l[q.id]).filter(Boolean)[0]||"";c+='<button class="pending-btn" data-action="startEv" data-week="'+l.week+'"><div class="pending-date">'+fd(l.week)+'</div><div class="pending-preview">'+preview.substring(0,80)+'...</div></button>'});c+='</div>'}}
 else if(log){const allSc=CRITERIA.every(cr=>S.sc[cr]);
 c+='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px"><div class="card-title" style="margin:0">Evaluating '+es+' — '+fd(ew)+'</div><button class="btn-back" data-action="cancelEv">← Back</button></div>';
 c+='<div class="sub-card"><h4>THEIR SUBMISSION</h4>';
-if(log.project)c+='<div class="sub-item"><div class="sub-item-label">Project Work:</div><div class="sub-item-text">'+log.project+'</div></div>';
-if(log.training)c+='<div class="sub-item"><div class="sub-item-label">Training:</div><div class="sub-item-text">'+log.training+'</div></div>';
-if(log.initiative)c+='<div class="sub-item"><div class="sub-item-label">Initiative:</div><div class="sub-item-text">'+log.initiative+'</div></div>';
-if(log.crossTraining)c+='<div class="sub-item"><div class="sub-item-label">Cross-Training:</div><div class="sub-item-text">'+log.crossTraining+'</div></div>';
-if(log.blockers)c+='<div class="sub-item"><div class="sub-item-label">Blockers:</div><div class="sub-item-text">'+log.blockers+'</div></div>';
+QUESTIONS.forEach(q=>{if(log[q.id])c+='<div class="sub-item"><div class="sub-item-label">'+q.label.replace(/\?$/,"")+':</div><div class="sub-item-text">'+log[q.id]+'</div></div>'});
 c+='</div><h4 style="font-size:14px;color:#1a1a1a;margin-bottom:12px">Your Scores</h4>';
 CRITERIA.forEach(cr=>{c+='<div class="score-row"><span class="score-label">'+cr+'</span><div class="score-btns">';[1,2,3,4,5].forEach(v=>{c+='<button class="score-btn '+(S.sc[cr]===v?"sel":"")+'" data-v="'+v+'" data-action="score" data-cr="'+cr+'" data-val="'+v+'">'+v+'</button>'});c+='</div></div>'});
 if(allSc)c+='<div class="overall-display"><div class="overall-label">Overall Score</div><div class="overall-num">'+(CRITERIA.reduce((s,cr)=>s+S.sc[cr],0)/4).toFixed(1)+'</div><div class="overall-label">/ 5</div></div>';
 c+='<div class="form-group"><textarea id="ec" class="form-textarea" rows="2" placeholder="Any comments? (optional)">'+S.ec+'</textarea></div><button class="btn btn-primary" data-action="subEval" '+(allSc?"":"disabled")+'>Save Evaluation</button></div>'}
 return c}
 function dashTab(){return'<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><div class="card-title" style="margin:0">Team Comparison</div><div style="display:flex;gap:6px"><button style="background:#1a1a1a;color:#fbbf24;border:none;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer" data-action="dlSummary">⬇ Summary</button><button style="background:#1a1a1a;color:#fff;border:none;padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer" data-action="dlFull">⬇ Full Data</button></div></div><div class="table-wrap"><table><thead><tr><th>Staff</th><th>Wks</th>'+CRITERIA.map(c=>'<th>'+c.substring(0,4)+'</th>').join('')+'<th>OVERALL</th></tr></thead><tbody>'+STAFF.map(s=>{const o=oa(s),r=gr(o);return'<tr><td>'+s.split(" ")[0]+'</td><td>'+ge(s).length+'</td>'+CRITERIA.map(c=>'<td style="font-weight:600">'+(af(s,c)??"-")+'</td>').join('')+'<td style="font-weight:700;font-size:15px;color:#1a1a1a;background:'+r.color+'">'+(o??"-")+'</td></tr>'}).join('')+'</tbody></table></div></div><div class="card"><div class="card-title">Rating Guide</div>'+RATINGS.map(r=>'<div class="rating-row" style="background:'+r.color+'"><span class="rating-score">'+r.range+'</span><span class="rating-label">'+r.label+'</span><span class="rating-desc">'+r.desc+'</span></div>').join('')+'</div><div class="alert-box"><h3>Between Projects — Expected Activities</h3>'+BETWEEN.map((x,i)=>'<div class="alert-item"><span class="alert-num">'+(i+1)+'.</span><span>'+x+'</span></div>').join('')+'</div>'}
-function histTab(){return STAFF.map(s=>{const evs=ge(s),o=oa(s);return'<div class="card"><div class="card-title">'+s+'</div><div class="card-sub">'+evs.length+' week'+(evs.length!==1?"s":"")+" evaluated"+(o?" • Overall: "+o+"/5":"")+'</div>'+(evs.length===0?'<div class="empty">No evaluations yet.</div>':evs.map(ev=>{const r=gr(ev.overall),log=S.logs[sk(s+"-"+ev.week)];return'<div class="hist-item"><div class="hist-top"><span class="hist-date">'+fd(ev.week)+'</span><span class="hist-badge" style="background:'+r.color+'">'+ev.overall+'/5 — '+r.label+'</span></div><div class="hist-scores">'+CRITERIA.map(c=>'<span>'+c+': <strong>'+ev.scores[c]+'</strong></span>').join('')+'</div>'+(ev.comment?'<div class="hist-comment">"'+ev.comment+'"</div>':'')+(log?'<p style="font-size:11px;color:var(--text-lighter);margin-top:2px">Project: '+((log.project||"").substring(0,80))+'</p>':'')+'<div class="hist-meta">Evaluated by '+ev.evaluator+'</div></div>'}).join(''))+'</div>'}).join('')}
+function histTab(){return STAFF.map(s=>{const evs=ge(s),o=oa(s);return'<div class="card"><div class="card-title">'+s+'</div><div class="card-sub">'+evs.length+' week'+(evs.length!==1?"s":"")+" evaluated"+(o?" • Overall: "+o+"/5":"")+'</div>'+(evs.length===0?'<div class="empty">No evaluations yet.</div>':evs.map(ev=>{const r=gr(ev.overall),log=S.logs[sk(s+"-"+ev.week)],preview=log?QUESTIONS.map(q=>log[q.id]).filter(Boolean)[0]||"":"";return'<div class="hist-item"><div class="hist-top"><span class="hist-date">'+fd(ev.week)+'</span><span class="hist-badge" style="background:'+r.color+'">'+ev.overall+'/5 — '+r.label+'</span></div><div class="hist-scores">'+CRITERIA.map(c=>'<span>'+c+': <strong>'+ev.scores[c]+'</strong></span>').join('')+'</div>'+(ev.comment?'<div class="hist-comment">"'+ev.comment+'"</div>':'')+(preview?'<p style="font-size:11px;color:var(--text-lighter);margin-top:2px">'+preview.substring(0,80)+'</p>':'')+'<div class="hist-meta">Evaluated by '+ev.evaluator+'</div></div>'}).join(''))+'</div>'}).join('')}
 function teamTab(){
 return'<div class="card"><div class="card-title">Manage Staff</div><div class="card-sub">Add or remove team members. Changes take effect immediately.</div>'+
 STAFF.map((s,i)=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f1f5f9"><span style="font-weight:600;font-size:14px">'+s+'</span><button style="background:rgba(220,38,38,0.08);color:#dc2626;border:none;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer" data-action="removeStaff" data-idx="'+i+'">Remove</button></div>').join('')+
-'<div style="display:flex;gap:8px;margin-top:16px"><input type="text" id="newStaff" class="form-input" placeholder="Full name (e.g. John Smith)" style="flex:1"><button style="background:#1a1a1a;color:#fbbf24;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap" data-action="addStaff">+ Add</button></div></div>'+
+'<div style="display:flex;gap:8px;margin-top:16px"><input type="text" id="newStaff" class="form-input" placeholder="Full name (e.g. Nikhil Singh)" style="flex:1"><button style="background:#1a1a1a;color:#fbbf24;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap" data-action="addStaff">+ Add</button></div></div>'+
+'<div class="card"><div class="card-title">Weekly Log Questions</div><div class="card-sub">Edit the questions staff see when submitting their weekly log. Drag to reorder coming soon.</div>'+
+QUESTIONS.map((q,i)=>'<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px"><span style="font-weight:700;font-size:13px;color:#1a1a1a">Q'+(i+1)+'</span><div style="display:flex;gap:4px">'+(i>0?'<button style="background:#f1f5f9;border:1px solid #e2e8f0;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit" data-action="moveQUp" data-idx="'+i+'">↑</button>':'')+
+(i<QUESTIONS.length-1?'<button style="background:#f1f5f9;border:1px solid #e2e8f0;padding:3px 8px;border-radius:4px;cursor:pointer;font-size:11px;font-family:inherit" data-action="moveQDown" data-idx="'+i+'">↓</button>':'')+
+'<button style="background:rgba(220,38,38,0.08);color:#dc2626;border:none;padding:3px 8px;border-radius:4px;font-size:11px;font-weight:600;font-family:inherit;cursor:pointer" data-action="removeQ" data-idx="'+i+'">✕</button></div></div>'+
+'<div style="margin-bottom:6px"><label style="font-size:11px;color:var(--text-lighter);font-weight:600">Question</label><input type="text" class="form-input" id="ql_'+i+'" value="'+q.label.replace(/"/g,'&quot;')+'" style="font-size:13px;margin-top:2px"></div>'+
+'<div><label style="font-size:11px;color:var(--text-lighter);font-weight:600">Hint text</label><input type="text" class="form-input" id="qh_'+i+'" value="'+q.hint.replace(/"/g,'&quot;')+'" style="font-size:12px;margin-top:2px;color:var(--text-light)"></div></div>').join('')+
+'<div style="display:flex;gap:8px;margin-top:12px"><button style="background:#1a1a1a;color:#fbbf24;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;white-space:nowrap" data-action="addQ">+ Add Question</button>'+
+'<button style="background:#fbbf24;color:#1a1a1a;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;flex:1" data-action="saveQ">Save Questions</button></div></div>'+
 '<div class="card"><div class="card-title">Manage Managers</div><div class="card-sub">Current managers who can evaluate staff.</div>'+
 MANAGERS.map(m=>'<div style="padding:8px 0;border-bottom:1px solid #f1f5f9;font-weight:600;font-size:14px">'+m+'</div>').join('')+
 '<p style="font-size:12px;color:var(--text-lighter);margin-top:12px"></p></div>'+
@@ -223,17 +233,22 @@ case"setES":S.es=d.name;S.ew=null;S.sc={};S.ec="";break;
 case"startEv":S.ew=d.week;S.sc={};S.ec="";break;
 case"cancelEv":S.ew=null;S.sc={};S.ec="";break;
 case"score":S.sc[d.cr]=parseInt(d.val);break;
-case"subLog":{const w=$("lw").value,p=$("lp").value.trim(),t=$("lt").value.trim(),i=$("li").value.trim(),cr=$("lc").value.trim(),b=$("lb").value.trim();if(!p&&!t&&!i){alert("Please fill in at least one field.");return}const k=sk(S.user+"-"+w);await saveLog(k,{staff:S.user,week:w,project:p,training:t,initiative:i,crossTraining:cr,blockers:b,submittedAt:new Date().toISOString()});toast("Weekly log submitted!");return}
+case"subLog":{const w=$("lw").value;const answers={};let hasAny=false;QUESTIONS.forEach(q=>{const el=$("q_"+q.id);const v=el?el.value.trim():"";answers[q.id]=v;if(v)hasAny=true});if(!hasAny){alert("Please fill in at least one field.");return}const k=sk(S.user+"-"+w);await saveLog(k,{staff:S.user,week:w,...answers,submittedAt:new Date().toISOString()});toast("Weekly log submitted!");return}
 case"subEval":{if(!CRITERIA.every(c=>S.sc[c]))return;const cm=$("ec")?$("ec").value.trim():"",avg=CRITERIA.reduce((s,c)=>s+S.sc[c],0)/4,k=sk(S.es+"-"+S.ew);await saveEval(k,{staff:S.es,week:S.ew,scores:{...S.sc},overall:Math.round(avg*10)/10,evaluator:S.user,comment:cm,evaluatedAt:new Date().toISOString()});S.ew=null;S.sc={};S.ec="";toast("Evaluation saved!");return}
 case"reset":{if(!confirm("DELETE all data? Cannot be undone."))return;await resetAll();toast("All data cleared.");break}
 case"dlFull":exportCSV();return;
 case"dlSummary":exportSummaryCSV();return;
 case"addStaff":{const inp=$("newStaff");const name=inp?inp.value.trim():"";if(!name){alert("Enter a name.");return}if(STAFF.includes(name)){alert(name+" is already on the list.");return}STAFF.push(name);await saveStaff();toast(name+" added!");break}
 case"removeStaff":{const idx=parseInt(d.idx);const name=STAFF[idx];if(!confirm("Remove "+name+" from the team?\n\nTheir past logs and evaluations will be kept.")){return}STAFF.splice(idx,1);if(S.es===name)S.es=STAFF[0]||"";await saveStaff();toast(name+" removed.");break}
+case"addQ":{QUESTIONS.push({id:"q_"+Date.now(),label:"New question?",hint:"Add a hint for staff"});break}
+case"removeQ":{const qi=parseInt(d.idx);if(QUESTIONS.length<=1){alert("You need at least one question.");return}if(!confirm("Remove question: \""+QUESTIONS[qi].label+"\"?")){return}QUESTIONS.splice(qi,1);break}
+case"moveQUp":{const qi=parseInt(d.idx);if(qi>0){const tmp=QUESTIONS[qi];QUESTIONS[qi]=QUESTIONS[qi-1];QUESTIONS[qi-1]=tmp}break}
+case"moveQDown":{const qi=parseInt(d.idx);if(qi<QUESTIONS.length-1){const tmp=QUESTIONS[qi];QUESTIONS[qi]=QUESTIONS[qi+1];QUESTIONS[qi+1]=tmp}break}
+case"saveQ":{QUESTIONS.forEach((q,i)=>{const lEl=$("ql_"+i);const hEl=$("qh_"+i);if(lEl)q.label=lEl.value.trim()||"Question "+(i+1);if(hEl)q.hint=hEl.value.trim()});await saveQuestions();toast("Questions saved!");break}
 }render()}
 function exportCSV(){
-const rows=[["Staff","Week","Project Work","Training","Initiative","Cross-Training","Blockers","Productivity","Initiative Score","Quality","Development","Overall","Rating","Evaluator","Comment"]];
-STAFF.forEach(s=>{const logs=gl(s);logs.forEach(l=>{const ev=S.evals[sk(s+"-"+l.week)];const r=ev?gr(ev.overall):{label:""};rows.push([s,l.week,'"'+(l.project||"").replace(/"/g,'""')+'"','"'+(l.training||"").replace(/"/g,'""')+'"','"'+(l.initiative||"").replace(/"/g,'""')+'"','"'+(l.crossTraining||"").replace(/"/g,'""')+'"','"'+(l.blockers||"").replace(/"/g,'""')+'"',ev?ev.scores.Productivity:"",ev?ev.scores.Initiative:"",ev?ev.scores.Quality:"",ev?ev.scores.Development:"",ev?ev.overall:"",r.label,ev?ev.evaluator:"",'"'+(ev&&ev.comment||"").replace(/"/g,'""')+'"'])})});
+const rows=[["Staff","Week",...QUESTIONS.map(q=>q.label),"Productivity","Initiative Score","Quality","Development","Overall","Rating","Evaluator","Comment"]];
+STAFF.forEach(s=>{const logs=gl(s);logs.forEach(l=>{const ev=S.evals[sk(s+"-"+l.week)];const r=ev?gr(ev.overall):{label:""};rows.push([s,l.week,...QUESTIONS.map(q=>'"'+(l[q.id]||"").replace(/"/g,'""')+'"'),ev?ev.scores.Productivity:"",ev?ev.scores.Initiative:"",ev?ev.scores.Quality:"",ev?ev.scores.Development:"",ev?ev.overall:"",r.label,ev?ev.evaluator:"",'"'+(ev&&ev.comment||"").replace(/"/g,'""')+'"'])})});
 if(rows.length<2){alert("No data to export.");return}
 const csv=rows.map(r=>r.join(",")).join("\n");
 const blob=new Blob([csv],{type:"text/csv"});
